@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signface — LED Module &amp; Ribbon Population Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0B1420; --panel:#101D2E; --panel2:#0D1826; --grid:#1E3348;
+    --ink:#E9EEF3; --ink-dim:#8FA3B8; --ink-faint:#5A7086;
+    --amber:#FFB238; --teal:#59D6C7; --red:#FF6B5E;
+    --border:#20374F;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:'IBM Plex Mono',monospace; font-size:14px; line-height:1.5;}
+  body{
+    background-image:linear-gradient(var(--grid) 1px, transparent 1px),linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:28px 28px; background-attachment:fixed;
+  }
+  h1,h2,h3{font-family:'Space Grotesk',sans-serif; margin:0; color:var(--ink); font-weight:600;}
+  .wrap{max-width:1180px; margin:0 auto; padding:28px 20px 80px;}
+
+  .titleblock{border:1px solid var(--border); background:var(--panel); display:grid; grid-template-columns:1fr auto; gap:8px; padding:18px 22px; margin-bottom:22px; position:relative;}
+  .titleblock::before{content:"";position:absolute; top:6px; left:6px; width:10px; height:10px; border-top:2px solid var(--amber); border-left:2px solid var(--amber);}
+  .titleblock::after{content:"";position:absolute; bottom:6px; right:6px; width:10px; height:10px; border-bottom:2px solid var(--amber); border-right:2px solid var(--amber);}
+  .titleblock h1{font-size:22px; letter-spacing:.2px;}
+  .titleblock .tagline{color:var(--ink-dim); font-size:12.5px; margin-top:4px;}
+  .titleblock .meta{text-align:right; font-size:11px; color:var(--ink-faint);}
+  .titleblock .meta div{margin-bottom:2px;}
+  .meta b{color:var(--teal);}
+
+  .steps{display:flex; gap:6px; margin-bottom:22px; flex-wrap:wrap;}
+  .steps div{flex:1; min-width:140px; border:1px solid var(--border); background:var(--panel2); padding:8px 10px; font-size:11px; color:var(--ink-faint);}
+  .steps div b{display:block; color:var(--teal); font-family:'Space Grotesk',sans-serif; font-size:13px; margin-bottom:2px;}
+
+  .sheet{border:1px solid var(--border); background:var(--panel); margin-bottom:20px; position:relative;}
+  .sheet-head{display:flex; align-items:center; justify-content:space-between; padding:12px 18px; border-bottom:1px solid var(--border); background:var(--panel2);}
+  .sheet-head h2{font-size:14px; letter-spacing:.4px; color:var(--amber);}
+  .sheet-head .n{font-size:11px; color:var(--ink-faint);}
+  .sheet-body{padding:18px;}
+
+  label{display:block; font-size:11px; color:var(--ink-dim); margin-bottom:5px; letter-spacing:.2px;}
+  input[type=text], input[type=number], select{width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:9px 10px; font-family:'IBM Plex Mono',monospace; font-size:13px; border-radius:2px;}
+  input:focus, select:focus{outline:1px solid var(--teal); border-color:var(--teal);}
+  .row{display:grid; gap:14px;}
+  .row.c2{grid-template-columns:1fr 1fr;}
+  .row.c3{grid-template-columns:1fr 1fr 1fr;}
+  .row.c4{grid-template-columns:1fr 1fr 1fr 1fr;}
+  .field{margin-bottom:14px;}
+  .hint{font-size:11px; color:var(--ink-faint); margin-top:4px;}
+
+  button{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:12.5px; background:transparent; border:1px solid var(--amber); color:var(--amber); padding:9px 16px; cursor:pointer; letter-spacing:.3px; border-radius:2px; transition:background .12s ease, color .12s ease;}
+  button:hover{background:var(--amber); color:#1A1200;}
+  button.ghost{border-color:var(--border); color:var(--ink-dim);}
+  button.ghost:hover{background:var(--panel2); color:var(--ink);}
+  button.danger{border-color:var(--red); color:var(--red);}
+  button.danger:hover{background:var(--red); color:#2A0000;}
+  button.primary{background:var(--teal); border-color:var(--teal); color:#062521;}
+  button.primary:hover{background:#7FE6D8;}
+  button.active{background:var(--amber); color:#1A1200;}
+  button:disabled{opacity:.35; cursor:not-allowed;}
+
+  .toolbar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;}
+  .canvas-shell{border:1px solid var(--border); background:#0A1622; position:relative;}
+  canvas#stage{width:100%; display:block; cursor:crosshair;}
+  .canvas-cap{font-size:11px; color:var(--ink-faint); margin-top:6px; text-align:center; letter-spacing:.3px;}
+  canvas.drawing{width:100%; border:1px solid var(--border); background:#0A1622; display:block;}
+
+  .pending{border:1px solid var(--teal); background:var(--panel2); padding:14px; margin-top:12px; display:none;}
+  .pending h4{color:var(--teal); font-size:12px; margin-bottom:10px; font-family:'Space Grotesk',sans-serif;}
+
+  .zone-card{border:1px solid var(--border); background:var(--panel2); padding:12px 14px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;}
+  .zone-card .zi{flex:1; min-width:220px;}
+  .zone-card .zi b{color:var(--ink); font-family:'Space Grotesk',sans-serif; font-size:13px;}
+  .zone-card .zi span{display:block; color:var(--ink-faint); font-size:11px; margin-top:2px;}
+  .zone-card .zf{display:flex; gap:8px; flex-wrap:wrap; align-items:end;}
+  .zone-card .zf .field{margin-bottom:0; width:100px;}
+  .tag{display:inline-block; font-size:10px; padding:2px 7px; border:1px solid var(--border); color:var(--ink-faint); border-radius:10px; margin-left:6px;}
+
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th,td{border:1px solid var(--border); padding:8px 10px; text-align:left;}
+  th{background:var(--panel2); color:var(--teal); font-weight:600; font-size:11px; letter-spacing:.3px; text-transform:uppercase;}
+  td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  tr.total td{border-top:2px solid var(--amber); color:var(--amber); font-weight:600;}
+
+  @media (max-width:820px){ .row.c2, .row.c3, .row.c4{grid-template-columns:1fr;} }
+
+  .photo-drop{border:1px dashed var(--border); background:var(--panel2); padding:16px; text-align:center; cursor:pointer; color:var(--ink-faint); font-size:12px;}
+  .photo-drop img{max-width:100%; max-height:140px; display:block; margin:0 auto;}
+  .photo-drop:hover{border-color:var(--teal); color:var(--teal);}
+
+  .stat{border:1px solid var(--border); background:var(--panel2); padding:12px 14px;}
+  .stat .v{font-family:'Space Grotesk',sans-serif; font-size:24px; color:var(--amber); font-weight:700;}
+  .stat .l{font-size:10.5px; color:var(--ink-faint); letter-spacing:.4px; text-transform:uppercase; margin-top:2px;}
+  .statgrid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:18px;}
+  @media (max-width:820px){.statgrid{grid-template-columns:repeat(2,1fr);}}
+
+  .warn{border:1px solid var(--red); background:#241012; color:#FFB4AC; padding:10px 12px; font-size:12px; margin-bottom:14px;}
+  .info{border:1px solid var(--teal); background:#0C2422; color:#C7F5EE; padding:10px 12px; font-size:12px; margin-bottom:14px;}
+  .note{border:1px solid var(--border); background:var(--panel2); color:var(--ink-dim); padding:10px 12px; font-size:11.5px; margin-top:10px;}
+  .empty{color:var(--ink-faint); font-size:12px; padding:10px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="titleblock">
+    <div>
+      <h1>SIGNFACE — LED Module &amp; Ribbon Population Tool</h1>
+      <div class="tagline">Upload a sign photo, trace the faces that need illuminating, choose your modules — get a populated layout drawn on your own photo, plus a power schedule and wiring diagram.</div>
+    </div>
+    <div class="meta">
+      <div>DRAWING NO. <b id="drwNo">SF-0001</b></div>
+      <div>DATE <b id="drwDate"></b></div>
+      <div>MODULE LIBRARY <b>Solan · First Lites</b></div>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div><b>01 · Project</b>Sign type &amp; reference files</div>
+    <div><b>02 · Trace</b>Mark up faces / letters on your photo</div>
+    <div><b>03 · Illumination</b>Module brand, type &amp; colour</div>
+    <div><b>04 · Schedule</b>Module count, power &amp; cable</div>
+    <div><b>05 · Drawing</b>Populated drawing + wiring → PDF</div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="sheet">
+    <div class="sheet-head"><h2>01 · PROJECT &amp; SIGN TYPE</h2><div class="n">SHEET 1/5</div></div>
+    <div class="sheet-body">
+      <div class="row c2">
+        <div class="field">
+          <label>Sign / project name</label>
+          <input type="text" id="projName" placeholder="e.g. Riverside Café — fascia sign" value="Untitled Sign Project">
+        </div>
+        <div class="field">
+          <label>Sign type</label>
+          <select id="signType">
+            <optgroup label="Illuminated signs">
+              <option data-lit="1">Built-up / face-lit channel letters</option>
+              <option data-lit="1">Halo-lit (reverse channel) letters</option>
+              <option data-lit="1">Combination lit (face + halo) letters</option>
+              <option data-lit="1">Illuminated cabinet / light box</option>
+              <option data-lit="1">Flex-face light box</option>
+              <option data-lit="1">Illuminated monument / totem</option>
+              <option data-lit="1">Illuminated pylon sign</option>
+              <option data-lit="1">Internally illuminated projecting sign</option>
+            </optgroup>
+            <optgroup label="LED neon signs">
+              <option data-lit="1">Flexible LED neon logo / lettering</option>
+              <option data-lit="1">LED neon-effect signage</option>
+            </optgroup>
+            <optgroup label="Internal signs">
+              <option data-lit="0">Reception sign</option>
+              <option data-lit="0">Wayfinding / directional sign</option>
+              <option data-lit="1">Internal illuminated signage</option>
+              <option data-lit="0">Office / door signage</option>
+            </optgroup>
+            <optgroup label="External signs (non-illuminated)">
+              <option data-lit="0">Fascia sign (non-illuminated)</option>
+              <option data-lit="0">Projecting / hanging sign</option>
+              <option data-lit="0">Monument sign (non-illuminated)</option>
+              <option data-lit="0">Pylon / totem (non-illuminated)</option>
+              <option data-lit="0">Hoarding</option>
+              <option data-lit="0">Window graphics / vinyl</option>
+            </optgroup>
+          </select>
+          <div class="hint" id="litHint"></div>
+        </div>
+      </div>
+      <div class="row c2">
+        <div class="field">
+          <label>Reference photo — the tool traces and populates directly on this image</label>
+          <div class="photo-drop" id="photoDrop">Click to upload a photo or elevation of the sign face</div>
+          <input type="file" id="photoInput" accept="image/*" style="display:none;">
+        </div>
+        <div class="field">
+          <label>Cross-section / spec sheet (optional — attached as a reference page)</label>
+          <div class="photo-drop" id="specDrop">Click to upload a cross-section drawing, spec sheet or photo</div>
+          <input type="file" id="specInput" accept="image/*,application/pdf" style="display:none;">
+        </div>
+      </div>
+      <div class="note">No photo? That's fine — the trace canvas below opens with graph paper instead, and you can still draw zones to scale by typing their real dimensions.</div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="sheet">
+    <div class="sheet-head"><h2>02 · TRACE ZONES ON YOUR PHOTO</h2><div class="n">SHEET 2/5</div></div>
+    <div class="sheet-body">
+      <div class="toolbar">
+        <button class="ghost" id="modeRect" type="button">▭ Draw area zone (light box / halo panel)</button>
+        <button class="ghost" id="modePoly" type="button">✎ Trace letter outline (channel letters)</button>
+        <button class="ghost" id="finishPoly" type="button" disabled>✓ Finish letter outline</button>
+        <button class="ghost" id="cancelDraw" type="button">✕ Cancel drawing</button>
+        <button class="ghost" id="clearZones" type="button">🗑 Clear all zones</button>
+      </div>
+      <div class="hint" id="drawHint">Click "Draw area zone" then drag a box over the part of your photo that needs modules — or "Trace letter outline" and click around one letter, then hit Finish.</div>
+      <div class="canvas-shell" style="margin-top:10px;">
+        <canvas id="stage" width="1100" height="620"></canvas>
+      </div>
+      <div class="canvas-cap">TRACE CANVAS — zones you add appear here and are populated in place</div>
+
+      <div class="pending" id="pendingRect">
+        <h4>NEW AREA ZONE</h4>
+        <div class="row c4">
+          <div class="field"><label>Zone name</label><input type="text" id="pr_name" value="Zone 1"></div>
+          <div class="field"><label>Real width (mm)</label><input type="number" id="pr_w" value="800" min="1"></div>
+          <div class="field"><label>Real height (mm)</label><input type="number" id="pr_h" value="400" min="1"></div>
+          <div class="field"><label>Cross-section depth (mm)</label><input type="number" id="pr_d" value="100" min="1"></div>
+        </div>
+        <div class="row c2">
+          <button class="primary" id="pr_add" type="button">+ Add zone</button>
+          <button class="ghost" id="pr_cancel" type="button">Discard</button>
+        </div>
+      </div>
+
+      <div class="pending" id="pendingPoly">
+        <h4>NEW LETTER OUTLINE</h4>
+        <div class="row c4">
+          <div class="field"><label>Zone name</label><input type="text" id="pp_name" value="Letter 1"></div>
+          <div class="field"><label>Real letter height (mm)</label><input type="number" id="pp_h" value="300" min="1"></div>
+          <div class="field"><label>Cross-section depth (mm)</label><input type="number" id="pp_d" value="100" min="1"></div>
+          <div class="field"><label>Identical letters (repeat)</label><input type="number" id="pp_rep" value="1" min="1"></div>
+        </div>
+        <div class="row c2">
+          <button class="primary" id="pp_add" type="button">+ Add zone</button>
+          <button class="ghost" id="pp_cancel" type="button">Discard</button>
+        </div>
+      </div>
+
+      <h3 style="font-size:12.5px; color:var(--ink-dim); margin:16px 0 8px; letter-spacing:.3px;">ZONES</h3>
+      <div id="zoneList"></div>
+      <button class="ghost" id="manualAddBtn" type="button">+ Add zone manually (type dimensions, no drawing)</button>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="sheet">
+    <div class="sheet-head"><h2>03 · ILLUMINATION</h2><div class="n">SHEET 3/5</div></div>
+    <div class="sheet-body">
+      <div class="row c3">
+        <div class="field">
+          <label>Module brand</label>
+          <select id="brandSelect">
+            <option value="solan">Solan Modules</option>
+            <option value="firstlites">First Lites</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Illumination colour / CCT</label>
+          <select id="colourSelect">
+            <option>3000K Warm White</option>
+            <option>4000K Natural White</option>
+            <option>6500K Cool White</option>
+            <option>Red</option>
+            <option>Green</option>
+            <option>Blue</option>
+            <option>Amber</option>
+            <option>RGB Colour-Change</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Max modules per run / chain</label>
+          <input type="number" id="maxPerRun" min="1" value="20">
+        </div>
+      </div>
+      <div class="hint">The tool recommends a module from the chosen brand for each zone based on its depth (this is the PowerFlow-style auto-population step) — you can override the model or tighten/loosen spacing per zone once the schedule is built.</div>
+      <div class="row" style="margin-top:14px;">
+        <button class="primary" id="calcBtn" type="button">Auto-populate &amp; calculate schedule →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="sheet" id="resultsSheet" style="display:none;">
+    <div class="sheet-head"><h2>04 · MODULE SCHEDULE &amp; POWER</h2><div class="n">SHEET 4/5</div></div>
+    <div class="sheet-body">
+      <div id="warnBox"></div>
+      <div class="statgrid" id="statGrid"></div>
+      <h3 style="font-size:12.5px; color:var(--ink-dim); margin-bottom:8px; letter-spacing:.3px;">MODULES BY ZONE</h3>
+      <div style="overflow-x:auto; margin-bottom:10px;"><table id="zoneTable"></table></div>
+      <div class="hint" style="margin-bottom:18px;">Want a different module or tighter/looser spacing for a zone? Change it below and recalculate.</div>
+      <div id="overrideList" style="margin-bottom:18px;"></div>
+      <button class="ghost" id="recalcBtn" type="button" style="margin-bottom:18px;">↻ Recalculate with overrides</button>
+
+      <h3 style="font-size:12.5px; color:var(--ink-dim); margin-bottom:8px; letter-spacing:.3px;">POWER SUPPLY OPTIONS</h3>
+      <div style="overflow-x:auto; margin-bottom:18px;"><table id="psuTable"></table></div>
+      <h3 style="font-size:12.5px; color:var(--ink-dim); margin-bottom:8px; letter-spacing:.3px;">CABLE &amp; WIRING NOTES</h3>
+      <div style="overflow-x:auto;"><table id="cableTable"></table></div>
+      <div class="note" id="ruleNote"></div>
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="sheet" id="drawingSheet" style="display:none;">
+    <div class="sheet-head"><h2>05 · POPULATED DRAWING &amp; WIRING</h2><div class="n">SHEET 5/5</div></div>
+    <div class="sheet-body">
+      <div class="canvas-cap">The trace canvas above (Step 2) now shows your populated modules directly on the photo — scroll up to view it, or see it below in the exported PDF.</div>
+      <div class="canvas-shell" style="margin-top:10px;">
+        <canvas class="drawing" id="wiringCanvas" width="1100" height="420"></canvas>
+      </div>
+      <div class="canvas-cap">WIRING &amp; POWER SCHEMATIC — not to scale</div>
+      <div class="row" style="margin-top:18px;">
+        <button class="primary" id="pdfBtn" type="button">⬇ Download full drawing set (PDF)</button>
+      </div>
+      <div class="note">This tool produces engineering-estimate layouts based on typical manufacturer spacing rules. Always confirm module count, spacing, driver sizing and cable specification against the current Solan Modules / First Lites datasheets before fabrication.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ================= DATA ================= */
+const BRANDS = {
+  solan: { label:"Solan Modules", models:[
+    {id:'solan-mini', name:'Solan Mini (Single Lens)', watts:0.5, volts:12, spacing:100, depthMin:40, depthMax:100, ip:'IP65'},
+    {id:'solan-standard', name:'Solan Standard (Twin Lens)', watts:1.0, volts:12, spacing:150, depthMin:80, depthMax:180, ip:'IP65'},
+    {id:'solan-prism', name:'Solan Prism Deep (Triple Lens)', watts:1.5, volts:24, spacing:200, depthMin:150, depthMax:300, ip:'IP65'},
+    {id:'solan-flex-rgb', name:'Solan Flex RGB', watts:1.2, volts:24, spacing:150, depthMin:80, depthMax:200, ip:'IP65', rgb:true},
+  ]},
+  firstlites: { label:"First Lites", models:[
+    {id:'fl-single', name:'First Lites Single Lens', watts:0.5, volts:24, spacing:100, depthMin:30, depthMax:80, ip:'IP65'},
+    {id:'fl-twin', name:'First Lites Twin Lens', watts:1.0, volts:24, spacing:150, depthMin:80, depthMax:150, ip:'IP65'},
+    {id:'fl-triple', name:'First Lites Triple Lens', watts:1.5, volts:24, spacing:200, depthMin:150, depthMax:400, ip:'IP65'},
+  ]}
+};
+const PSU_SIZES = { 12:[30,60,100,150,200], 24:[60,100,150,200,320] };
+const CABLE_TABLE = [
+  {maxA:3, mm2:'0.75mm² (18 AWG)'}, {maxA:6, mm2:'1.5mm² (16 AWG)'},
+  {maxA:10, mm2:'2.5mm² (14 AWG)'}, {maxA:16, mm2:'4mm² (12 AWG)'},
+  {maxA:25, mm2:'6mm² (10 AWG)'}, {maxA:Infinity, mm2:'Split into multiple circuits'},
+];
+
+/* ================= STATE ================= */
+let zones = [];        // {id,type:'rect'|'poly',name,depth,mm:{...},repeat,px:{...},modelOverride,spacingOverride}
+let zoneCounter = 0;
+let calc = null;
+let photoImg = null;   // HTMLImageElement
+let photoDataUrl = null;
+let imgRect = null;    // {x,y,w,h} where photo is drawn on canvas
+let specDataUrl = null, specIsImage = false, specFileName = '';
+
+let drawMode = null;   // null | 'rect' | 'poly'
+let rectStart = null, rectPreview = null;
+let polyPoints = [];
+let mousePos = null;
+
+const stage = document.getElementById('stage');
+const ctx = stage.getContext('2d');
+
+document.getElementById('drwDate').textContent = new Date().toLocaleDateString('en-GB');
+document.getElementById('drwNo').textContent = 'SF-' + Math.floor(1000+Math.random()*8999);
+
+/* ================= SIGN TYPE ================= */
+const signTypeSel = document.getElementById('signType');
+function updateLitHint(){
+  const opt = signTypeSel.options[signTypeSel.selectedIndex];
+  const lit = opt.getAttribute('data-lit') === '1';
+  document.getElementById('litHint').textContent = lit
+    ? 'Illuminated sign type — module population applies.'
+    : 'This sign type is not typically illuminated. You can still trace and measure it, but skip Step 3/4 if no LED schedule is needed.';
+}
+signTypeSel.addEventListener('change', updateLitHint);
+updateLitHint();
+
+/* ================= FILE UPLOADS ================= */
+const photoDrop = document.getElementById('photoDrop');
+const photoInput = document.getElementById('photoInput');
+photoDrop.addEventListener('click', ()=>photoInput.click());
+photoInput.addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    photoDataUrl = ev.target.result;
+    const img = new Image();
+    img.onload = ()=>{
+      photoImg = img;
+      photoDrop.innerHTML = `<img src="${photoDataUrl}" alt="sign reference">`;
+      fitImageToCanvas();
+      redrawStage();
+    };
+    img.src = photoDataUrl;
+  };
+  reader.readAsDataURL(file);
+});
+
+const specDrop = document.getElementById('specDrop');
+const specInput = document.getElementById('specInput');
+specDrop.addEventListener('click', ()=>specInput.click());
+specInput.addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  specFileName = file.name;
+  if(file.type === 'application/pdf'){
+    specIsImage = false; specDataUrl = null;
+    specDrop.innerHTML = `📄 ${file.name} attached (included as reference note)`;
+  } else {
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      specDataUrl = ev.target.result; specIsImage = true;
+      specDrop.innerHTML = `<img src="${specDataUrl}" alt="spec reference">`;
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+/* ================= CANVAS / STAGE ================= */
+function fitImageToCanvas(){
+  if(!photoImg){ imgRect = null; return; }
+  const pad = 10;
+  const cw = stage.width - pad*2, ch = stage.height - pad*2;
+  const s = Math.min(cw/photoImg.width, ch/photoImg.height);
+  const w = photoImg.width*s, h = photoImg.height*s;
+  imgRect = { x:(stage.width-w)/2, y:(stage.height-h)/2, w, h };
+}
+
+function drawGraphPaper(){
+  ctx.fillStyle = '#0A1622'; ctx.fillRect(0,0,stage.width,stage.height);
+  ctx.strokeStyle = 'rgba(89,214,199,0.10)'; ctx.lineWidth = 1;
+  for(let x=0;x<stage.width;x+=25){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,stage.height); ctx.stroke(); }
+  for(let y=0;y<stage.height;y+=25){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(stage.width,y); ctx.stroke(); }
+}
+
+function redrawStage(){
+  ctx.clearRect(0,0,stage.width,stage.height);
+  if(photoImg && imgRect){
+    ctx.fillStyle = '#0A1622'; ctx.fillRect(0,0,stage.width,stage.height);
+    ctx.drawImage(photoImg, imgRect.x, imgRect.y, imgRect.w, imgRect.h);
+  } else {
+    drawGraphPaper();
+  }
+
+  // existing zones
+  zones.forEach(z=>{
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#FFB238';
+    ctx.fillStyle = 'rgba(255,178,56,0.08)';
+    if(z.type==='rect'){
+      ctx.fillRect(z.px.x, z.px.y, z.px.w, z.px.h);
+      ctx.strokeRect(z.px.x, z.px.y, z.px.w, z.px.h);
+      labelZone(z.name, z.px.x+4, z.px.y+14);
+    } else {
+      drawPolyPath(z.px.points, true);
+      ctx.fill(); ctx.stroke();
+      labelZone(z.name, z.px.points[0].x+4, z.px.points[0].y-6);
+    }
+  });
+
+  // in-progress rectangle
+  if(drawMode==='rect' && rectStart && mousePos){
+    const x = Math.min(rectStart.x, mousePos.x), y = Math.min(rectStart.y, mousePos.y);
+    const w = Math.abs(mousePos.x-rectStart.x), h = Math.abs(mousePos.y-rectStart.y);
+    ctx.strokeStyle = '#59D6C7'; ctx.lineWidth = 1.5; ctx.setLineDash([5,4]);
+    ctx.strokeRect(x,y,w,h); ctx.setLineDash([]);
+  }
+  // in-progress polygon
+  if(drawMode==='poly' && polyPoints.length){
+    ctx.strokeStyle = '#59D6C7'; ctx.fillStyle = '#59D6C7'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    polyPoints.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+    if(mousePos) ctx.lineTo(mousePos.x, mousePos.y);
+    ctx.stroke();
+    polyPoints.forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); });
+  }
+
+  // module dots (post-calculation)
+  if(calc){
+    calc.zoneResults.forEach(r=>{
+      ctx.fillStyle = '#FFDE7A';
+      r.dots.forEach(d=>{ ctx.beginPath(); ctx.arc(d.x,d.y,2.6,0,Math.PI*2); ctx.fill(); });
+    });
+  }
+}
+function drawPolyPath(points, close){
+  ctx.beginPath();
+  points.forEach((p,i)=>{ if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+  if(close) ctx.closePath();
+}
+function labelZone(name,x,y){
+  ctx.fillStyle = '#0A1622'; ctx.font = '600 11px Space Grotesk';
+  const w = ctx.measureText(name).width;
+  ctx.fillRect(x-3,y-11,w+6,14);
+  ctx.fillStyle = '#FFB238'; ctx.fillText(name, x, y);
+}
+
+function canvasPos(evt){
+  const rect = stage.getBoundingClientRect();
+  const sx = stage.width/rect.width, sy = stage.height/rect.height;
+  const cx = (evt.touches ? evt.touches[0].clientX : evt.clientX) - rect.left;
+  const cy = (evt.touches ? evt.touches[0].clientY : evt.clientY) - rect.top;
+  return { x: cx*sx, y: cy*sy };
+}
+
+stage.addEventListener('mousedown', e=>{
+  const p = canvasPos(e);
+  if(drawMode==='rect'){ rectStart = p; }
+  else if(drawMode==='poly'){ polyPoints.push(p); document.getElementById('finishPoly').disabled = polyPoints.length<3; }
+  redrawStage();
+});
+stage.addEventListener('mousemove', e=>{
+  mousePos = canvasPos(e);
+  if(drawMode) redrawStage();
+});
+stage.addEventListener('mouseup', e=>{
+  if(drawMode==='rect' && rectStart){
+    const p = canvasPos(e);
+    const x = Math.min(rectStart.x,p.x), y = Math.min(rectStart.y,p.y);
+    const w = Math.abs(p.x-rectStart.x), h = Math.abs(p.y-rectStart.y);
+    rectStart = null;
+    if(w>8 && h>8){
+      rectPreview = {x,y,w,h};
+      openPendingRect();
+    }
+    setMode(null);
+    redrawStage();
+  }
+});
+
+document.getElementById('modeRect').addEventListener('click', ()=>{ setMode(drawMode==='rect'?null:'rect'); });
+document.getElementById('modePoly').addEventListener('click', ()=>{ setMode(drawMode==='poly'?null:'poly'); polyPoints=[]; document.getElementById('finishPoly').disabled=true; });
+document.getElementById('cancelDraw').addEventListener('click', ()=>{ setMode(null); rectStart=null; polyPoints=[]; hidePending(); redrawStage(); });
+document.getElementById('clearZones').addEventListener('click', ()=>{
+  if(zones.length && !confirm('Remove all traced zones?')) return;
+  zones = []; calc=null; document.getElementById('resultsSheet').style.display='none'; document.getElementById('drawingSheet').style.display='none';
+  redrawStage(); renderZoneList();
+});
+document.getElementById('finishPoly').addEventListener('click', ()=>{
+  if(polyPoints.length>=3){ openPendingPoly(); }
+});
+
+function setMode(m){
+  drawMode = m;
+  document.getElementById('modeRect').classList.toggle('active', m==='rect');
+  document.getElementById('modePoly').classList.toggle('active', m==='poly');
+  document.getElementById('finishPoly').disabled = !(m==='poly' && polyPoints.length>=3);
+  document.getElementById('drawHint').textContent = m==='rect'
+    ? 'Drag a box over the area on your photo that needs modules, then release.'
+    : m==='poly'
+      ? 'Click around the outline of one letter (as many points as you like). Click "Finish letter outline" when done.'
+      : 'Click "Draw area zone" then drag a box over the part of your photo that needs modules — or "Trace letter outline" and click around one letter, then hit Finish.';
+}
+
+/* ---- pending forms ---- */
+function openPendingRect(){
+  document.getElementById('pendingPoly').style.display='none';
+  document.getElementById('pendingRect').style.display='block';
+  document.getElementById('pr_name').value = 'Zone ' + (zones.length+1);
+  document.getElementById('pendingRect').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+function openPendingPoly(){
+  document.getElementById('pendingRect').style.display='none';
+  document.getElementById('pendingPoly').style.display='block';
+  document.getElementById('pp_name').value = 'Letter ' + (zones.filter(z=>z.type==='poly').length+1);
+  document.getElementById('pendingPoly').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+function hidePending(){
+  document.getElementById('pendingRect').style.display='none';
+  document.getElementById('pendingPoly').style.display='none';
+}
+
+document.getElementById('pr_add').addEventListener('click', ()=>{
+  zoneCounter++;
+  zones.push({
+    id:'z'+zoneCounter, type:'rect', name:document.getElementById('pr_name').value||('Zone '+zoneCounter),
+    depth: parseFloat(document.getElementById('pr_d').value)||100,
+    mm:{ width: parseFloat(document.getElementById('pr_w').value)||800, height: parseFloat(document.getElementById('pr_h').value)||400 },
+    px: rectPreview, modelOverride:null, spacingOverride:null
+  });
+  rectPreview=null; hidePending(); redrawStage(); renderZoneList();
+});
+document.getElementById('pr_cancel').addEventListener('click', ()=>{ rectPreview=null; hidePending(); redrawStage(); });
+
+document.getElementById('pp_add').addEventListener('click', ()=>{
+  zoneCounter++;
+  zones.push({
+    id:'z'+zoneCounter, type:'poly', name:document.getElementById('pp_name').value||('Letter '+zoneCounter),
+    depth: parseFloat(document.getElementById('pp_d').value)||100,
+    mm:{ letterHeight: parseFloat(document.getElementById('pp_h').value)||300 },
+    repeat: parseInt(document.getElementById('pp_rep').value)||1,
+    px:{ points: polyPoints.slice() }, modelOverride:null, spacingOverride:null
+  });
+  polyPoints=[]; document.getElementById('finishPoly').disabled=true; hidePending(); redrawStage(); renderZoneList();
+});
+document.getElementById('pp_cancel').addEventListener('click', ()=>{ polyPoints=[]; document.getElementById('finishPoly').disabled=true; hidePending(); redrawStage(); });
+
+document.getElementById('manualAddBtn').addEventListener('click', ()=>{
+  zoneCounter++;
+  const idx = zones.length;
+  const cols = 3;
+  const cellW = stage.width/cols, cellH = 110;
+  const px = { x: 20 + (idx%cols)*cellW, y: 20 + Math.floor(idx/cols)*cellH, w: cellW-40, h: cellH-30 };
+  zones.push({
+    id:'z'+zoneCounter, type:'rect', name:'Zone '+zoneCounter, depth:100,
+    mm:{width:800,height:400}, px, modelOverride:null, spacingOverride:null
+  });
+  redrawStage(); renderZoneList();
+});
+
+/* ---- zone list ---- */
+function removeZone(id){ zones = zones.filter(z=>z.id!==id); redrawStage(); renderZoneList(); }
+
+function renderZoneList(){
+  const list = document.getElementById('zoneList');
+  if(!zones.length){ list.innerHTML = '<div class="empty">No zones yet — trace or add at least one zone above.</div>'; return; }
+  list.innerHTML = '';
+  zones.forEach(z=>{
+    const card = document.createElement('div');
+    card.className = 'zone-card';
+    const dims = z.type==='rect'
+      ? `${z.mm.width}×${z.mm.height}mm, depth ${z.depth}mm`
+      : `letter height ${z.mm.letterHeight}mm ×${z.repeat}, depth ${z.depth}mm`;
+    card.innerHTML = `
+      <div class="zi"><b>${z.name}</b><span class="tag">${z.type==='rect'?'area fill':'channel letters'}</span><span>${dims}</span></div>
+      <div class="zf">
+        ${z.type==='rect' ? `
+          <div class="field"><label>Width mm</label><input type="number" data-f="mm.width" data-id="${z.id}" value="${z.mm.width}"></div>
+          <div class="field"><label>Height mm</label><input type="number" data-f="mm.height" data-id="${z.id}" value="${z.mm.height}"></div>
+        ` : `
+          <div class="field"><label>Letter h. mm</label><input type="number" data-f="mm.letterHeight" data-id="${z.id}" value="${z.mm.letterHeight}"></div>
+          <div class="field"><label>Repeat ×</label><input type="number" data-f="repeat" data-id="${z.id}" value="${z.repeat}"></div>
+        `}
+        <div class="field"><label>Depth mm</label><input type="number" data-f="depth" data-id="${z.id}" value="${z.depth}"></div>
+        <button class="danger" data-remove="${z.id}" type="button">Remove</button>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+  list.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click', e=>removeZone(e.target.getAttribute('data-remove'))));
+  list.querySelectorAll('[data-f]').forEach(el=>{
+    el.addEventListener('change', e=>{
+      const id = e.target.getAttribute('data-id');
+      const path = e.target.getAttribute('data-f').split('.');
+      const z = zones.find(zz=>zz.id===id); if(!z) return;
+      const val = parseFloat(e.target.value)||0;
+      if(path.length===2) z[path[0]][path[1]] = val; else z[path[0]] = val;
+    });
+  });
+}
+renderZoneList();
+fitImageToCanvas();
+redrawStage();
+
+/* ================= RECOMMENDATION ================= */
+function recommendModel(brandKey, depth){
+  const models = BRANDS[brandKey].models;
+  let fit = models.filter(m => depth >= m.depthMin && depth <= m.depthMax);
+  if(fit.length) return fit[0];
+  let best = models[0], bestDist = Infinity;
+  models.forEach(m=>{
+    const dist = depth < m.depthMin ? m.depthMin-depth : depth - m.depthMax;
+    if(dist < bestDist){ bestDist = dist; best = m; }
+  });
+  return best;
+}
+
+/* ================= GEOMETRY HELPERS ================= */
+function polyPerimeterPx(points){
+  let sum=0;
+  for(let i=0;i<points.length;i++){
+    const a=points[i], b=points[(i+1)%points.length];
+    sum += Math.hypot(b.x-a.x, b.y-a.y);
+  }
+  return sum;
+}
+function polyBBox(points){
+  const xs=points.map(p=>p.x), ys=points.map(p=>p.y);
+  return { minX:Math.min(...xs), maxX:Math.max(...xs), minY:Math.min(...ys), maxY:Math.max(...ys) };
+}
+function pointsAlongPolygon(points, stepPx){
+  const pts=[]; const n=points.length; let carry=0;
+  for(let i=0;i<n;i++){
+    const a=points[i], b=points[(i+1)%n];
+    const segLen = Math.hypot(b.x-a.x, b.y-a.y);
+    let d = carry;
+    while(d < segLen){
+      const t = d/segLen;
+      pts.push({ x:a.x+(b.x-a.x)*t, y:a.y+(b.y-a.y)*t });
+      d += stepPx;
+    }
+    carry = d - segLen;
+  }
+  if(pts.length===0) pts.push(points[0]);
+  return pts;
+}
+
+/* ================= CALCULATION ================= */
+function calculate(){
+  if(!zones.length){ alert('Add at least one zone before calculating.'); return; }
+  const brandKey = document.getElementById('brandSelect').value;
+  const colour = document.getElementById('colourSelect').value;
+  const maxPerRun = parseInt(document.getElementById('maxPerRun').value)||20;
+
+  const zoneResults = zones.map(z=>{
+    const model = z.modelOverride ? BRANDS[brandKey].models.find(m=>m.id===z.modelOverride) : recommendModel(brandKey, z.depth);
+    const spacing = z.spacingOverride && z.spacingOverride>0 ? z.spacingOverride : model.spacing;
+    let moduleCount, dots=[];
+
+    if(z.type==='rect'){
+      const cols = Math.max(1, Math.round(z.mm.width / spacing) + 1);
+      const rows = Math.max(1, Math.round(z.mm.height / spacing) + 1);
+      moduleCount = cols*rows;
+      for(let i=0;i<cols;i++) for(let j=0;j<rows;j++){
+        const x = z.px.x + (cols<=1? z.px.w/2 : (i/(cols-1))*z.px.w);
+        const y = z.px.y + (rows<=1? z.px.h/2 : (j/(rows-1))*z.px.h);
+        dots.push({x,y});
+      }
+    } else {
+      const bbox = polyBBox(z.px.points);
+      const pxHeight = Math.max(1, bbox.maxY-bbox.minY);
+      const scalePxPerMm = pxHeight / z.mm.letterHeight;
+      const perimeterPx = polyPerimeterPx(z.px.points);
+      const perimeterMm = perimeterPx / scalePxPerMm;
+      const perLetterModules = Math.max(1, Math.round(perimeterMm / spacing));
+      const stepPx = perimeterPx / perLetterModules;
+      dots = pointsAlongPolygon(z.px.points, stepPx);
+      moduleCount = perLetterModules * (z.repeat||1);
+    }
+
+    const watts = moduleCount * model.watts;
+    const runs = Math.ceil(moduleCount / maxPerRun);
+    return { zone:z, model, spacing, moduleCount, watts, runs, dots };
+  });
+
+  const totalModules = zoneResults.reduce((s,r)=>s+r.moduleCount,0);
+  const totalWatts = zoneResults.reduce((s,r)=>s+r.watts,0);
+  const designWatts = totalWatts * 1.2;
+
+  const voltages = [...new Set(zoneResults.map(r=>r.model.volts))];
+  const psuPlan = voltages.map(v=>{
+    const wattsAtV = zoneResults.filter(r=>r.model.volts===v).reduce((s,r)=>s+r.watts,0) * 1.2;
+    const options = PSU_SIZES[v].map(size=>({ size, qty: Math.max(1, Math.ceil(wattsAtV / size)) }));
+    let rec = options[0];
+    options.forEach(o=>{ if(o.qty*o.size >= wattsAtV && (o.qty*o.size - wattsAtV) < (rec.qty*rec.size - wattsAtV)) rec = o; });
+    const current = wattsAtV / v;
+    return {volts:v, wattsAtV, options, recommended:rec, current};
+  });
+  const cableRows = psuPlan.map(p=>{
+    const c = CABLE_TABLE.find(row=>p.current <= row.maxA);
+    return {volts:p.volts, current:p.current, cable:c.mm2};
+  });
+
+  calc = { brandKey, colour, maxPerRun, zoneResults, totalModules, totalWatts, designWatts, psuPlan, cableRows };
+  renderResults();
+  drawWiring(document.getElementById('wiringCanvas'), calc);
+  redrawStage();
+  document.getElementById('resultsSheet').style.display='block';
+  document.getElementById('drawingSheet').style.display='block';
+  document.getElementById('resultsSheet').scrollIntoView({behavior:'smooth'});
+}
+document.getElementById('calcBtn').addEventListener('click', calculate);
+document.getElementById('recalcBtn').addEventListener('click', calculate);
+
+/* ================= RESULTS RENDER ================= */
+function renderResults(){
+  const warnBox = document.getElementById('warnBox');
+  warnBox.innerHTML='';
+  if(document.getElementById('colourSelect').value === 'RGB Colour-Change'){
+    warnBox.innerHTML = '<div class="warn">RGB colour-change selected: this requires an RGB/DMX controller and data cable run in addition to the driver — allow an additional controller unit per ~4 driver circuits and include control cable in the wiring plan.</div>';
+  }
+
+  document.getElementById('statGrid').innerHTML = `
+    <div class="stat"><div class="v">${calc.totalModules}</div><div class="l">Total modules</div></div>
+    <div class="stat"><div class="v">${calc.totalWatts.toFixed(1)}W</div><div class="l">Connected load</div></div>
+    <div class="stat"><div class="v">${calc.designWatts.toFixed(0)}W</div><div class="l">Design load (+20%)</div></div>
+    <div class="stat"><div class="v">${zones.length}</div><div class="l">Zones</div></div>
+  `;
+
+  document.getElementById('zoneTable').innerHTML = `<tr><th>Zone</th><th>Module</th><th>Depth</th><th>Spacing</th><th class="num">Modules</th><th class="num">Watts</th><th class="num">Runs</th></tr>` +
+    calc.zoneResults.map(r=>`<tr>
+      <td>${r.zone.name}</td><td>${r.model.name} (${r.model.volts}V, ${r.model.ip})</td>
+      <td>${r.zone.depth}mm</td><td>${r.spacing}mm</td>
+      <td class="num">${r.moduleCount}</td><td class="num">${r.watts.toFixed(1)}</td><td class="num">${r.runs}</td>
+    </tr>`).join('') +
+    `<tr class="total"><td colspan="4">TOTAL</td><td class="num">${calc.totalModules}</td><td class="num">${calc.totalWatts.toFixed(1)}</td><td class="num">${calc.zoneResults.reduce((s,r)=>s+r.runs,0)}</td></tr>`;
+
+  const brandKey = document.getElementById('brandSelect').value;
+  const overrideList = document.getElementById('overrideList');
+  overrideList.innerHTML = calc.zoneResults.map(r=>`
+    <div class="zone-card">
+      <div class="zi"><b>${r.zone.name}</b><span>currently: ${r.model.name}, ${r.spacing}mm spacing</span></div>
+      <div class="zf">
+        <div class="field" style="width:220px;"><label>Module override</label>
+          <select data-ov="model" data-id="${r.zone.id}">
+            <option value="">Auto (${recommendModel(brandKey,r.zone.depth).name})</option>
+            ${BRANDS[brandKey].models.map(m=>`<option value="${m.id}" ${r.zone.modelOverride===m.id?'selected':''}>${m.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Spacing override (mm)</label><input type="number" data-ov="spacing" data-id="${r.zone.id}" value="${r.zone.spacingOverride||''}" placeholder="auto"></div>
+      </div>
+    </div>
+  `).join('');
+  overrideList.querySelectorAll('[data-ov="model"]').forEach(el=>el.addEventListener('change', e=>{
+    const z = zones.find(zz=>zz.id===e.target.getAttribute('data-id')); if(z) z.modelOverride = e.target.value || null;
+  }));
+  overrideList.querySelectorAll('[data-ov="spacing"]').forEach(el=>el.addEventListener('change', e=>{
+    const z = zones.find(zz=>zz.id===e.target.getAttribute('data-id')); if(z) z.spacingOverride = parseFloat(e.target.value)||null;
+  }));
+
+  document.getElementById('psuTable').innerHTML = `<tr><th>Circuit voltage</th><th class="num">Design load</th><th>PSU option</th><th class="num">Qty needed</th></tr>` +
+    calc.psuPlan.map(p=>p.options.map((o,i)=>`<tr ${o.size===p.recommended.size?'style="color:var(--amber)"':''}>
+      ${i===0?`<td rowspan="${p.options.length}">${p.volts}V DC</td><td rowspan="${p.options.length}" class="num">${p.wattsAtV.toFixed(0)}W</td>`:''}
+      <td>${o.size}W ${o.size===p.recommended.size?'★ recommended':''}</td><td class="num">${o.qty}</td>
+    </tr>`).join('')).join('');
+
+  document.getElementById('cableTable').innerHTML = `<tr><th>Circuit voltage</th><th class="num">Design current</th><th>Main feed cable</th></tr>` +
+    calc.cableRows.map(c=>`<tr><td>${c.volts}V DC</td><td class="num">${c.current.toFixed(2)}A</td><td>${c.cable}</td></tr>`).join('') +
+    `<tr><td colspan="3" style="color:var(--ink-faint); font-size:11px;">Module-to-module jumper cable per manufacturer lead (typically 0.5mm² / 22-24AWG) — main feed sized above runs from PSU to first module in each run.</td></tr>`;
+
+  document.getElementById('ruleNote').innerHTML =
+    `Spacing and wattage figures shown are typical published values for ${BRANDS[calc.brandKey].label} product families at the stated cross-section depth. Max ${calc.maxPerRun} modules per run assumed for chain/voltage-drop limits. Always verify against the current manufacturer datasheet, especially for runs longer than 5m or signs installed in high ambient temperatures.`;
+}
+
+/* ================= WIRING DIAGRAM ================= */
+function drawWiring(canvas, calc){
+  const c = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  c.clearRect(0,0,W,H);
+  c.fillStyle = '#0A1622'; c.fillRect(0,0,W,H);
+  c.font='11px IBM Plex Mono';
+  const psuX = 40, yStart = 50;
+
+  calc.psuPlan.forEach((p,idx)=>{
+    const py = yStart + idx*90;
+    c.strokeStyle='#59D6C7'; c.fillStyle='#101D2E'; c.lineWidth=1.5;
+    c.fillRect(psuX, py, 130, 60); c.strokeRect(psuX, py, 130, 60);
+    c.fillStyle='#59D6C7'; c.textAlign='center'; c.font='600 12px Space Grotesk';
+    c.fillText(p.recommended.size+'W PSU', psuX+65, py+24);
+    c.font='11px IBM Plex Mono'; c.fillStyle='#8FA3B8';
+    c.fillText('×'+p.recommended.qty+' · '+p.volts+'V DC', psuX+65, py+40);
+    c.fillText(p.current.toFixed(1)+'A design', psuX+65, py+54);
+  });
+
+  const colGap = (W-160)/Math.max(1,calc.zoneResults.length);
+  calc.zoneResults.forEach((r,i)=>{
+    const zoneX = 220 + i*colGap;
+    const psuIdx = calc.psuPlan.findIndex(p=>p.volts===r.model.volts);
+    const py = yStart + psuIdx*90 + 30;
+    c.strokeStyle='#FFB238'; c.lineWidth=1.2;
+    c.beginPath(); c.moveTo(psuX+130, py); c.lineTo(zoneX, py); c.lineTo(zoneX, 200); c.stroke();
+    c.fillStyle='#101D2E'; c.strokeStyle='#3A5670';
+    c.fillRect(zoneX-70, 200, 140, 70); c.strokeRect(zoneX-70, 200, 140, 70);
+    c.fillStyle='#E9EEF3'; c.textAlign='center'; c.font='600 11px Space Grotesk';
+    wrapText(c, r.zone.name, zoneX, 218, 130, 13);
+    c.font='10.5px IBM Plex Mono'; c.fillStyle='#8FA3B8';
+    c.fillText(r.runs+' run(s) · '+r.moduleCount+' modules', zoneX, 250);
+    c.fillText('max '+calc.maxPerRun+'/run', zoneX, 262);
+  });
+  c.fillStyle='#5A7086'; c.font='10.5px IBM Plex Mono'; c.textAlign='left';
+  c.fillText('— amber: DC feed runs   |   PSU sizing includes 20% headroom   |   see cable table for feed gauge', 20, H-16);
+}
+function wrapText(c, text, x, y, maxWidth, lineHeight){
+  const words = text.split(' '); let line='', lines=[];
+  words.forEach(w=>{ const t=line+w+' '; if(c.measureText(t).width>maxWidth && line){lines.push(line); line=w+' ';} else line=t; });
+  lines.push(line);
+  lines.forEach((l,i)=>c.fillText(l.trim(), x, y+i*lineHeight));
+}
+
+/* ================= PDF EXPORT ================= */
+document.getElementById('pdfBtn').addEventListener('click', async ()=>{
+  if(!calc) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const pageW = 210, pageH = 297, margin = 14;
+  const projName = document.getElementById('projName').value || 'Untitled Sign Project';
+  const signType = document.getElementById('signType').value;
+  const drwNo = document.getElementById('drwNo').textContent;
+  const dateStr = document.getElementById('drwDate').textContent;
+
+  function header(title){
+    doc.setFillColor(16,29,46); doc.rect(0,0,pageW,20,'F');
+    doc.setTextColor(255,178,56); doc.setFont('helvetica','bold'); doc.setFontSize(13);
+    doc.text('SIGNFACE — ' + title, margin, 13);
+    doc.setTextColor(220,220,220); doc.setFont('helvetica','normal'); doc.setFontSize(9);
+    doc.text(drwNo + '   ·   ' + dateStr, pageW-margin, 13, {align:'right'});
+    doc.setTextColor(30,30,30);
+  }
+  function footer(pageNo, total){
+    doc.setFontSize(8); doc.setTextColor(130,130,130);
+    doc.text(projName + '  —  ' + signType, margin, pageH-8);
+    doc.text('Sheet ' + pageNo + ' / ' + total, pageW-margin, pageH-8, {align:'right'});
+  }
+
+  let totalPages = 4 + (specIsImage?1:0);
+  let pageNo = 1;
+
+  // COVER
+  header('COVER SHEET');
+  doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(20,20,20);
+  doc.text(projName, margin, 36);
+  doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(70,70,70);
+  doc.text('Sign type: ' + signType, margin, 44);
+  doc.text('Module brand: ' + BRANDS[calc.brandKey].label + '   |   Illumination: ' + calc.colour, margin, 50);
+  doc.text('Zones: ' + zones.length + '   |   Total modules: ' + calc.totalModules + '   |   Design load: ' + calc.designWatts.toFixed(0) + 'W', margin, 56);
+  if(specFileName) doc.text('Reference file: ' + specFileName, margin, 62);
+  footer(pageNo, totalPages); pageNo++;
+
+  // SPEC / CROSS-SECTION REFERENCE (if image)
+  if(specIsImage){
+    doc.addPage(); header('CROSS-SECTION / SPEC REFERENCE');
+    try{
+      const img = new Image(); await new Promise(res=>{img.onload=res; img.src=specDataUrl;});
+      const maxW = pageW-margin*2, maxH = 220;
+      let iw=img.width, ih=img.height; const ratio=Math.min(maxW/iw, maxH/ih); iw*=ratio; ih*=ratio;
+      doc.addImage(specDataUrl,'JPEG', margin+(maxW-iw)/2, 30, iw, ih);
+    }catch(e){}
+    footer(pageNo, totalPages); pageNo++;
+  }
+
+  // POPULATED LAYOUT DRAWING (the trace canvas itself)
+  doc.addPage(); header('POPULATED LAYOUT DRAWING');
+  const stageData = stage.toDataURL('image/png');
+  const siw = pageW - margin*2;
+  const sih = siw * (stage.height/stage.width);
+  doc.addImage(stageData, 'PNG', margin, 26, siw, sih);
+  doc.setFontSize(8); doc.setTextColor(120,120,120);
+  doc.text('Amber dots indicate module positions, drawn to the real-world dimensions entered for each zone.', margin, 26+sih+6);
+  footer(pageNo, totalPages); pageNo++;
+
+  // SCHEDULE PAGE
+  doc.addPage(); header('MODULE SCHEDULE & POWER');
+  let y = 30;
+  doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(20,20,20);
+  doc.text('Modules by zone', margin, y); y+=6;
+  doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+  const colX = [margin, margin+38, margin+92, margin+112, margin+134, margin+156];
+  const headers1 = ['Zone','Module','Depth','Spacing','Modules','Watts'];
+  doc.setFont('helvetica','bold'); headers1.forEach((h,i)=>doc.text(h, colX[i], y));
+  y+=5; doc.setFont('helvetica','normal');
+  calc.zoneResults.forEach(r=>{
+    doc.text(String(r.zone.name).slice(0,20), colX[0], y);
+    doc.text(String(r.model.name).slice(0,32), colX[1], y);
+    doc.text(r.zone.depth+'mm', colX[2], y);
+    doc.text(r.spacing+'mm', colX[3], y);
+    doc.text(String(r.moduleCount), colX[4], y);
+    doc.text(r.watts.toFixed(1), colX[5], y);
+    y+=5.5;
+  });
+  y+=2; doc.setDrawColor(220,150,50); doc.line(margin,y,pageW-margin,y); y+=5;
+  doc.setFont('helvetica','bold');
+  doc.text('TOTAL', colX[0], y); doc.text(String(calc.totalModules), colX[4], y); doc.text(calc.totalWatts.toFixed(1), colX[5], y);
+  y+=10;
+
+  doc.setFontSize(11); doc.text('Power supply plan', margin, y); y+=6;
+  doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+  calc.psuPlan.forEach(p=>{
+    doc.text(`${p.volts}V DC circuit — design load ${p.wattsAtV.toFixed(0)}W, current ${p.current.toFixed(2)}A`, margin, y); y+=5;
+    doc.setFont('helvetica','bold');
+    doc.text(`  Recommended: ${p.recommended.qty} × ${p.recommended.size}W driver(s)`, margin, y); y+=5.5;
+    doc.setFont('helvetica','normal');
+  });
+  y+=4;
+  doc.setFontSize(11); doc.setFont('helvetica','bold'); doc.text('Cable specification', margin, y); y+=6;
+  doc.setFontSize(8.5); doc.setFont('helvetica','normal');
+  calc.cableRows.forEach(c=>{
+    doc.text(`${c.volts}V DC main feed — ${c.current.toFixed(2)}A design current — use ${c.cable}`, margin, y); y+=5.5;
+  });
+  y+=3;
+  doc.setFontSize(8); doc.setTextColor(120,120,120);
+  const noteLines = doc.splitTextToSize('Spacing and wattage figures are typical published values for the selected product family at the stated cross-section depth. Max ' + calc.maxPerRun + ' modules per run assumed for chain/voltage-drop limits. Confirm against current manufacturer datasheets before fabrication, particularly for runs beyond 5m or high-ambient installations.', pageW-margin*2);
+  doc.text(noteLines, margin, y);
+  footer(pageNo, totalPages); pageNo++;
+
+  // WIRING PAGE
+  doc.addPage(); header('WIRING & POWER SCHEMATIC');
+  const wc = document.getElementById('wiringCanvas');
+  const wimg = wc.toDataURL('image/png');
+  const wiw = pageW - margin*2;
+  const wih = wiw * (wc.height/wc.width);
+  doc.addImage(wimg, 'PNG', margin, 28, wiw, wih);
+  footer(pageNo, totalPages);
+
+  doc.save((projName.replace(/[^a-z0-9]+/gi,'_') || 'signface') + '_drawing_set.pdf');
+});
+</script>
+</body>
+</html>
